@@ -12,9 +12,9 @@ $ ./mix.py com examples/example.py
 ```
 
 ## Future Goals
-[ ] Turing Complete
-[ ] Memory Allocation
-[ ] Static Type Checking
-[ ] Graphics
-[ ] Optimized
-[ ] Windows/MacOS compatable
+- [ ] Turing Complete
+- [ ] Memory Allocation
+- [ ] Static Type Checking
+- [ ] Graphics
+- [ ] Optimized
+- [ ] Windows/MacOS compatable

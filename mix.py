@@ -4,7 +4,7 @@ import sys
 import subprocess
 import shlex
 
-import Lexer
+from libs.Lexer import *
 
 MIX_EXT = '.mix'
 
@@ -20,7 +20,7 @@ def usage(err : int):
     print("./main.py  |  help   |  None               - prints this help screen and exits with exit code 0")
     
     if err == 0:
-        pass
+        exit(0)
     else:
         exit(err)
 
@@ -41,6 +41,9 @@ def get_args():
         file_ = sys.argv[2]
         return subc, file_
     else:
+        if len(sys.argv) > 1:
+            if (sys.argv[1] == "help"):
+                usage(0)
         print("ERROR: No file path given")
         usage(1)
 
@@ -59,7 +62,7 @@ class Compiler:
         self.mix_ext   = mix_ext
 
         self.ip = ip
-        self.pos = Lexer.Position(-1, 0, -1, basepath, program_)
+        self.pos = Position(-1, 0, -1, basepath, program_)
         self.advance()
         
     def endswith_(self, basepath, mix_ext):
@@ -117,10 +120,12 @@ class Compiler:
                         self.advance()
                         if tokens[self.ip].type != "LPAREN":
                             pos_start = self.pos.copy()
-                            err = Lexer.InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got `{tokens[self.ip+1].type}`')
+                            err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got `{tokens[self.ip+1].type}`')
                             return err
                         self.advance()
-                        
+
+                        # TODO: implement printing of strings
+                        # TODO: implement printing of expression typed statements: printh(34+35): output: 69
                         if tokens[self.ip].type == "INT":
                             # print(tokens[self.ip].value)
                             num = tokens[self.ip].value
@@ -131,7 +136,7 @@ class Compiler:
                         self.advance()
                         if tokens[self.ip].type != "RPAREN":
                             pos_start = self.pos.copy()
-                            err = Lexer.InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got `{tokens[self.ip+1].type}`')
+                            err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got `{tokens[self.ip+1].type}:{tokens[self.ip+1].value}`')
                             return err
                         self.advance()
                         
@@ -178,7 +183,7 @@ def main():
     check_s(subcommand)
     program               = read_file(file_path)
     
-    lexer         = Lexer.Lexer('<stdin>', program)
+    lexer         = Lexer('<stdin>', program)
     tokens, error = lexer.make_tokens()
     if error: print(error.as_string())
 

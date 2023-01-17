@@ -1,78 +1,54 @@
 #!/usr/bin/env python3
 import string
+import sys
 
-# Mix programming language
-
-LETTERS = string.ascii_letters
-DIGITS = '0123456789'
-LETTERS_DIGITS = LETTERS + DIGITS
-
-KEYWORDS = [
-    "printh"
-]
-
-class Lexer:
-    def __init__(self, idx : int, program : str):
-        # TODO: implement the storage of line and token position for future error reporting
-        self.idx = idx
-        self.program = program
-
-    def make_identifier(self, tmp : str):
-        if tmp == 'printh':
-            self.tokens.append(f"IDENTIFIER:{tmp}")
-
-    def make_number(self, char : str):
-        tmp_idx = self.idx
-        post = self.program[tmp_idx+1]
-        num = ''
-        
-        while post in DIGITS: 
-            print(f"ERROR: number lexing hasn't been implemented yet: {char}")
-            exit(-1)
-            
-        
-    def tokenize(self):
-        tokens = []
-        self.tokens = tokens 
-        tmp = ''
-        while self.idx < len(self.program):
-            tmp += self.program[self.idx]
-            
-            if tmp in KEYWORDS:
-                # self.tokens.append(f"IDENTIFIER: {tmp}")
-                self.make_identifier(tmp)
-                tmp = ""
-            elif tmp in DIGITS:
-                self.make_number(tmp)
-                tmp = ""
-            elif tmp == "(":
-                self.tokens.append(f"{tmp}")
-                tmp = ""
-            elif tmp == ")":
-                self.tokens.append(f"{tmp}")
-                tmp = ""
-                
-            self.idx += 1
-            
-        # print(self.program[:-1], end='')
-        print(self.tokens)
-        return self.program
-        
-    def lex(self):
-        prg = self.tokenize()
-        
+import Lexer
 
 def read_file(program : str):
     with open(program, 'r') as fd:
         program = fd.read()
     return program
 
-def main():
-    file_path = "example.test"
-    program = read_file(file_path)
+def usage(err : int):
+    print("Usage: ./main.py SUBCOMMAND file_path")
+    print("./main.py  |  com    |  input file path    - compiles the program")
+    print("./main.py  |  sim    |  input file path    - simulates the program")
+    print("./main.py  |  help   |  None               - prints this help screen and exits with exit code 0")
+    
+    if err == 0:
+        pass
+    else:
+        exit(err)
 
-    lexer = Lexer(0, program)
-    program = lexer.lex()
+def check_s(subc):
+    if subc == "com":
+        return 
+    elif subc == "sim":
+        return 
+    elif subc == "help":
+        return 
+    else:
+        print(f"ERROR: Unknown Subcommand: {subc}")
+        usage(1)
+        
+def get_args():
+    if len(sys.argv) > 2:
+        subc  = sys.argv[1]
+        file_ = sys.argv[2]
+        return subc, file_
+    else:
+        print("ERROR: No file path given")
+        usage(1)
+        
+def main():
+    subcommand, file_path = get_args()
+    check_s(subcommand)
+    program = read_file(file_path)
+    
+    lexer = Lexer.Lexer('<stdin>', program)
+    tokens, error = lexer.make_tokens()
+    if error: print(error)
+    
 
 if __name__ == '__main__':
     main()

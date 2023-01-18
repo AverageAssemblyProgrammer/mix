@@ -48,12 +48,59 @@ def get_args():
         usage(1)
 
 class Simulater:
-    def __init__(self, program):
-        self.program = program
+    def __init__(self, program_, tokens, basepath, ip = -1):
+        self.program_ = program_
+        self.basepath = basepath
+        self.tokens = tokens
+        
+        self.ip = ip
+        self.pos = Position(-1, 0, -1, basepath, program_)
+        self.advance()
+
+    def advance(self):
+        self.ip += 1
+        self.pos.advance()
+        
+    def interpret(self, tokens):
+        assert(len(KEYWORDS) == 1), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
+
+        # print(tokens)
+        
+        while len(tokens) > self.ip:
+            if tokens[self.ip].type == "KEYWORD":
+                if tokens[self.ip].value == "printh":
+                    self.advance()
+                    if tokens[self.ip].type != TT_LPAREN:
+                        pos_start = self.pos.copy()
+                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got {tokens[self.ip].type}')
+                        return err
+                    self.advance()
+                    
+                    if tokens[self.ip].type == TT_INT:
+                        print(tokens[self.ip].value)
+                    else:
+                        print(f"ERROR: printing of `{tokens[self.ip].type}` type hasn't been implemented yet")
+                        exit(1)
+                    self.advance()
+                    
+                    if tokens[self.ip].type != TT_RPAREN:
+                        pos_start = self.pos.copy()
+                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got {tokens[self.ip].type}')
+                        return err
+                    self.advance()
+            elif tokens[self.ip].type == TT_NEWLINE:
+                pass
+            elif tokens[self.ip].type == TT_EOF:
+                break
+            else:
+                pos_start = self.pos.copy()
+                err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip].type}')
+                    
+            self.advance()
 
     def simulate_program(self):
-        print("Simulating the program isn't implemented yet")
-        exit(1)
+        err = self.interpret(self.tokens)
+        if err: print(err.as_string())
         
 class Compiler:
     def __init__(self, program_, program, basepath, mix_ext, ip = -1):
@@ -112,49 +159,48 @@ class Compiler:
             asm.write("global _start\n")
             asm.write("_start:\n")
 
-            # print(tokens) 
+            # print(tokens)
             
             while len(tokens) > self.ip:
+                assert(len(KEYWORDS) == 1), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
                 if tokens[self.ip].type == "KEYWORD":
                     if tokens[self.ip].value == "printh":
                         self.advance()
-                        if tokens[self.ip].type != "LPAREN":
+                        if tokens[self.ip].type != TT_LPAREN:
                             pos_start = self.pos.copy()
                             err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got `{tokens[self.ip+1].type}`')
                             return err
                         self.advance()
-
                         # TODO: implement printing of strings
                         # TODO: implement printing of expression typed statements: printh(34+35): output: 69
-                        if tokens[self.ip].type == "INT":
-                            # print(tokens[self.ip].value)
+                        if tokens[self.ip].type == TT_INT:
                             num = tokens[self.ip].value
                             asm.write(f'segment .text\n')
                             asm.write(f'    mov rdi, {num}\n')
                             asm.write(f'    call print\n')
-                            
+                        else:
+                            print(f"ERROR: printing of `{tokens[self.ip].type}` type hasn't been implemented yet")
+                            exit(1)
                         self.advance()
-                        if tokens[self.ip].type != "RPAREN":
+                        if tokens[self.ip].type != TT_RPAREN:
                             pos_start = self.pos.copy()
                             err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got `{tokens[self.ip+1].type}:{tokens[self.ip+1].value}`')
                             return err
                         self.advance()
                         
-                elif tokens[self.ip].type == "NEWLINE":
+                elif tokens[self.ip].type == TT_NEWLINE:
                     pass
-                elif tokens[self.ip].type == "EOF":
-                    break
+                elif tokens[self.ip].type == TT_EOF:
+                    asm.write(f'segment .text\n')
+                    asm.write(f'    mov rax, 60\n')
+                    asm.write(f'    mov rdi, 0\n')
+                    asm.write(f'    syscall')
                 else:
                     pos_start = self.pos.copy()
-                    err = Lexer.InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip].type}')
+                    err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip].type}')
                     return err
                 
                 self.advance()
-
-            asm.write(f'segment .text\n')
-            asm.write(f'    mov rax, 60\n')
-            asm.write(f'    mov rdi, 0\n')
-            asm.write(f'    syscall')
             
         self.generate_output(basepath, MIX_EXT)
         
@@ -176,26 +222,32 @@ class Compiler:
     def compile_program(self):
         err = self.generate_nasm_x86_64_assembly(self.program, self.basepath)
         if err: return err
-
         
 def main():
     subcommand, file_path = get_args()
     check_s(subcommand)
     program               = read_file(file_path)
     
-    lexer         = Lexer('<stdin>', program)
+    lexer         = Lexer(file_path, program)
     tokens, error = lexer.make_tokens()
-    if error: print(error.as_string())
+    if error:
+        print(error.as_string())
+        exit(1)
 
     # TODO: implement a parser
 
     if subcommand == "com":
         compi = Compiler(program, tokens, file_path, MIX_EXT)
         err = compi.compile_program()
-        if err: print(err.as_string())
+        if err:
+            print(err.as_string())
+            exit(1)
     elif subcommand == "sim":
-        simu = Simulater(tokens)
-        simu.simulate_program()
+        simu = Simulater(program, tokens, file_path)
+        err = simu.simulate_program()
+        if err:
+            print(err.as_string())
+            exit(1)
     elif subcommand == "help":
         usage(0)
     else:

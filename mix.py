@@ -100,7 +100,7 @@ class Simulater:
 
     def simulate_program(self):
         err = self.interpret(self.tokens)
-        if err: print(err.as_string())
+        if err: return err
         
 class Compiler:
     def __init__(self, program_, program, basepath, mix_ext, ip = -1):
@@ -121,6 +121,7 @@ class Compiler:
         basename = self.endswith_(basepath, MIX_EXT)
         
         with open(basename+".asm", "w") as asm:
+            # thanks tsodin
             asm.write("BITS 64\n")
             asm.write("segment .text\n")
             asm.write("print:\n")

@@ -8,7 +8,8 @@ Mix is a programming language which derives its features from many other program
 
 ```terminal
 $ ./mix.py help
-$ ./mix.py com examples/example.py
+$ ./mix.py com examples/hello.mix
+$ ./mix.py sim examples/hello.mix
 ```
 
 ## Future Goals

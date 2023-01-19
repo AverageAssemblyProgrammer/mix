@@ -78,7 +78,8 @@ TT_NEWLINE    = 'NEWLINE'
 TT_EOF	      = 'EOF'
 
 KEYWORDS = [
-    'printh'
+    'print',
+    'puts'
 ]
 
 class Token:
@@ -202,8 +203,7 @@ class Lexer:
     self.advance()
 
     escape_characters = {
-      'n': '\n',
-      't': '\t'
+      'n': '\n'
     }
 
     while self.current_char != None and (self.current_char != '"' or escape_character):
@@ -212,6 +212,7 @@ class Lexer:
       else:
         if self.current_char == '\\':
           escape_character = True
+          continue
         else:
           string += self.current_char
       self.advance()

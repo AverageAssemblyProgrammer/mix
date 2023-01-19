@@ -3,6 +3,7 @@ import string
 import sys
 import subprocess
 import shlex
+import random
 
 from libs.Lexer import *
 
@@ -62,13 +63,11 @@ class Simulater:
         self.pos.advance()
         
     def interpret(self, tokens):
-        assert(len(KEYWORDS) == 1), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
-
+        assert(len(KEYWORDS) == 2), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
         # print(tokens)
-        
         while len(tokens) > self.ip:
             if tokens[self.ip].type == "KEYWORD":
-                if tokens[self.ip].value == "printh":
+                if tokens[self.ip].value == "print":
                     self.advance()
                     if tokens[self.ip].type != TT_LPAREN:
                         pos_start = self.pos.copy()
@@ -78,9 +77,52 @@ class Simulater:
                     
                     if tokens[self.ip].type == TT_INT:
                         print(tokens[self.ip].value)
-                    else:
-                        print(f"ERROR: printing of `{tokens[self.ip].type}` type hasn't been implemented yet")
-                        exit(1)
+                    self.advance()
+                    
+                    if tokens[self.ip].type != TT_RPAREN:
+                        pos_start = self.pos.copy()
+                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got {tokens[self.ip].type}')
+                        return err
+                    self.advance()
+                elif tokens[self.ip].value == "puts":
+                    self.advance()
+                    if tokens[self.ip].type != TT_LPAREN:
+                        pos_start = self.pos.copy()
+                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got {tokens[self.ip].type}')
+                        return err
+                    self.advance()
+
+                    if tokens[self.ip].type == TT_STRING:
+                        string = tokens[self.ip].value
+                        ec = False
+                        nl = False
+                        i = 0
+                        while i < len(string):
+                            if string[i] == "\\":
+                                ec = True
+                                if string[i+1] == "n":
+                                    nl = True
+                                    np = -1
+                                    while np < len(string):
+                                        if string[np] == "\\":
+                                            np += 1
+                                            if string[np] == "n":
+                                                if np < len(string)-2:
+                                                    pos_start = self.pos.copy()
+                                                    # NOTE: printing of newlines that are in middle of a string, works in compilation mode because, the nasm assembler is actually handlng printing for us
+                                                    # in this case, we have to implement out own process for printing the new line
+                                                    # but I am too lazy to implement it right now
+                                                    err = InvalidSyntaxError(pos_start, self.pos, f'Mix cannot print new lines that are in the middle of a string in simulation mode yet: {string}')
+                                                    return err
+                                                
+                                        np += 1
+                                    string = string.replace("\\n", "")
+                                    print(string)
+                            i += 1
+                        if not(ec) and not(nl):
+                            print(string, end='')
+                        elif not(ec):
+                            print(string, end='')
                     self.advance()
                     
                     if tokens[self.ip].type != TT_RPAREN:
@@ -161,27 +203,66 @@ class Compiler:
             asm.write("_start:\n")
 
             # print(tokens)
-            
+            strings = {}
             while len(tokens) > self.ip:
-                assert(len(KEYWORDS) == 1), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
-                if tokens[self.ip].type == "KEYWORD":
-                    if tokens[self.ip].value == "printh":
+                assert(len(KEYWORDS) == 2), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
+                if tokens[self.ip].type == TT_KEYWORD:
+                    if tokens[self.ip].value == "print":
                         self.advance()
                         if tokens[self.ip].type != TT_LPAREN:
                             pos_start = self.pos.copy()
                             err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got `{tokens[self.ip+1].type}`')
                             return err
                         self.advance()
-                        # TODO: implement printing of strings
                         # TODO: implement printing of expression typed statements: printh(34+35): output: 69
                         if tokens[self.ip].type == TT_INT:
                             num = tokens[self.ip].value
                             asm.write(f'segment .text\n')
                             asm.write(f'    mov rdi, {num}\n')
                             asm.write(f'    call print\n')
-                        else:
-                            print(f"ERROR: printing of `{tokens[self.ip].type}` type hasn't been implemented yet")
-                            exit(1)
+                            
+                        self.advance()
+                        if tokens[self.ip].type != TT_RPAREN:
+                            pos_start = self.pos.copy()
+                            err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got `{tokens[self.ip+1].type}:{tokens[self.ip+1].value}`')
+                            return err
+                        self.advance()
+                    elif tokens[self.ip].value == "puts":
+                        self.advance()
+                        if tokens[self.ip].type != TT_LPAREN:
+                            pos_start = self.pos.copy()
+                            err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got `{tokens[self.ip+1].type}`')
+                            return err
+                        self.advance()
+                        
+                        if tokens[self.ip].type == TT_STRING:
+                            nl = False
+                            tmp = 0
+                            rand_id = str(random.randint(0, 10000000000))
+                            string = tokens[self.ip].value
+                            out_str    = "string" + "_" + rand_id
+                            while tmp < len(string):
+                                if string[tmp] == "\\":
+                                    if string[tmp+1] == "n":
+                                        nl = True
+                                tmp += 1
+                            if nl == True:
+                                str_len    = len(string) - 1
+                            else:
+                                str_len    = len(string)
+                            
+                            asm.write(f'segment .text\n')
+                            asm.write(f'    mov rax, 1\n')
+                            asm.write(f'    mov rdi, 1\n')
+                            asm.write(f'    mov rsi, {out_str}\n')
+                            asm.write(f'    mov rdx, {str_len}\n')
+                            asm.write(f'    syscall\n')
+                            
+                            strings.update({string : rand_id})
+
+                            asm.write(f'segment .data\n')
+                            asm.write(f'{out_str}: db    `{string}`\n')
+                            
                         self.advance()
                         if tokens[self.ip].type != TT_RPAREN:
                             pos_start = self.pos.copy()
@@ -198,7 +279,7 @@ class Compiler:
                     asm.write(f'    syscall')
                 else:
                     pos_start = self.pos.copy()
-                    err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip].type}')
+                    err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip]}')
                     return err
                 
                 self.advance()

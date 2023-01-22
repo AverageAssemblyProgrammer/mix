@@ -77,6 +77,9 @@ TT_ARROW      = 'ARROW'
 TT_NEWLINE    = 'NEWLINE'
 TT_EOF	      = 'EOF'
 
+OP_IF = "if"
+OP_END = "end"
+
 KEYWORDS = [
     'print',
     'puts'

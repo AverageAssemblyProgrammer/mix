@@ -1,0 +1,7 @@
+if 34 + 35 == 69
+  print(420)
+end 
+
+if 33 + 77 == 110
+  puts("no its 100\n")
+end

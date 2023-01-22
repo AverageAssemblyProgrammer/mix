@@ -15,6 +15,7 @@ $ ./examples/hello
 ## Future Goals
 - [ ] Turing Complete
 - [ ] Memory Allocation
+- [ ] Generating an AST (Abstract Syntax Tree)
 - [ ] Static Type Checking
 - [ ] Graphics
 - [ ] Optimized

@@ -18,7 +18,6 @@ def read_file(program : str):
 def usage(err : int):
     print("Usage: ./main.py SUBCOMMAND file_path")
     print("./main.py  |  com    |  input file path    - compiles the program")
-    print("./main.py  |  sim    |  input file path    - simulates the program")
     print("./main.py  |  help   |  None               - prints this help screen and exits with exit code 0")
     
     if err == 0:
@@ -28,8 +27,6 @@ def usage(err : int):
 
 def check_s(subc):
     if subc == "com":
-        return 
-    elif subc == "sim":
         return 
     elif subc == "help":
         return 
@@ -48,102 +45,6 @@ def get_args():
                 usage(0)
         print("ERROR: No file path given")
         usage(1)
-
-class Simulater:
-    def __init__(self, program_, tokens, basepath, ip = -1):
-        self.program_ = program_
-        self.basepath = basepath
-        self.tokens = tokens
-        
-        self.ip = ip
-        self.pos = Position(-1, 0, -1, basepath, program_)
-        self.advance()
-
-    def advance(self):
-        self.ip += 1
-        self.pos.advance()
-        
-    def interpret(self, tokens):
-        assert(len(KEYWORDS) == 2), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
-        # print(tokens)
-        while len(tokens) > self.ip:
-            if tokens[self.ip].type == "KEYWORD":
-                if tokens[self.ip].value == "print":
-                    self.advance()
-                    if tokens[self.ip].type != TT_LPAREN:
-                        pos_start = self.pos.copy()
-                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got {tokens[self.ip].type}')
-                        return err
-                    self.advance()
-                    
-                    if tokens[self.ip].type == TT_INT:
-                        print(tokens[self.ip].value)
-                    self.advance()
-                    
-                    if tokens[self.ip].type != TT_RPAREN:
-                        pos_start = self.pos.copy()
-                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got {tokens[self.ip].type}')
-                        return err
-                    self.advance()
-                elif tokens[self.ip].value == "puts":
-                    self.advance()
-                    if tokens[self.ip].type != TT_LPAREN:
-                        pos_start = self.pos.copy()
-                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `(` but got {tokens[self.ip].type}')
-                        return err
-                    self.advance()
-
-                    if tokens[self.ip].type == TT_STRING:
-                        string = tokens[self.ip].value
-                        ec = False
-                        nl = False
-                        i = 0
-                        while i < len(string):
-                            if string[i] == "\\":
-                                ec = True
-                                if string[i+1] == "n":
-                                    nl = True
-                                    np = -1
-                                    while np < len(string):
-                                        if string[np] == "\\":
-                                            np += 1
-                                            if string[np] == "n":
-                                                if np < len(string)-2:
-                                                    pos_start = self.pos.copy()
-                                                    # NOTE: printing of newlines that are in middle of a string, works in compilation mode because, the nasm assembler is actually handlng printing for us
-                                                    # in this case, we have to implement out own process for printing the new line
-                                                    # but I am too lazy to implement it right now
-                                                    err = InvalidSyntaxError(pos_start, self.pos, f'Mix cannot print new lines that are in the middle of a string in simulation mode yet: {string}')
-                                                    return err
-                                                
-                                        np += 1
-                                    string = string.replace("\\n", "")
-                                    print(string)
-                            i += 1
-                        if not(ec) and not(nl):
-                            print(string, end='')
-                        elif not(ec):
-                            print(string, end='')
-                    self.advance()
-                    
-                    if tokens[self.ip].type != TT_RPAREN:
-                        pos_start = self.pos.copy()
-                        err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got {tokens[self.ip].type}')
-                        return err
-                    self.advance()
-            elif tokens[self.ip].type == TT_NEWLINE:
-                pass
-            elif tokens[self.ip].type == TT_EOF:
-                break
-            else:
-                pos_start = self.pos.copy()
-                err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip].type}')
-                    
-            self.advance()
-
-    def simulate_program(self):
-        err = self.interpret(self.tokens)
-        if err: return err
         
 class Compiler:
     def __init__(self, program_, program, basepath, mix_ext, ip = -1):
@@ -367,12 +268,6 @@ def main():
     if subcommand == "com":
         compi = Compiler(program, tokens, file_path, MIX_EXT)
         err = compi.compile_program()
-        if err:
-            print(err.as_string())
-            exit(1)
-    elif subcommand == "sim":
-        simu = Simulater(program, tokens, file_path)
-        err = simu.simulate_program()
         if err:
             print(err.as_string())
             exit(1)

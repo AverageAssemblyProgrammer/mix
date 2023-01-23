@@ -118,7 +118,7 @@ class Compiler:
                         self.advance()
                         
                         if tokens[self.ip][0].type == TT_INT:
-                            num = tokens[self.ip][0].value
+                            num = int(tokens[self.ip][0].value)
                             asm.write(f'segment .text\n')
                             asm.write(f'    mov rdi, {num}\n')
                             asm.write(f'    call print\n')
@@ -173,19 +173,40 @@ class Compiler:
                             err = InvalidSyntaxError(pos_start, self.pos, f'Expected `)` but got `{tokens[self.ip+1].type}:{tokens[self.ip+1][0].value}`')
                             return err
                         self.advance()
+                    else:
+                        pos_start = self.pos.copy()
+                        err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip][0]}')
+                        
                 elif tokens[self.ip][0].type == TT_IDENTIFIER:
                     if tokens[self.ip][0].value == OP_IF:
                         assert len(tokens[self.ip]) == 2, "`if` instruction does not have a reference to the end of its block."
                         end_pos = tokens[self.ip][1]
                         nfoundee = True
                         
-                        while (nfoundee) and len(tokens) > self.ip:
+                        while (nfoundee):
                             self.advance()
-                            if tokens[self.ip][0].type == TT_EE:
+                            if tokens[self.ip][0].type == TT_EOF:
+                                pos_start = self.pos.copy()
+                                err = InvalidSyntaxError(pos_start, self.pos, f'`if` instruction needs the `==` sign for comparison for now?')
+                                return err
+                            elif tokens[self.ip][0].type == TT_EE:
                                 nfoundee = False
-                                
-                        num1 = tokens[self.ip-1][0].value
-                        num2 = tokens[self.ip+1][0].value
+                            
+                        # TODO: check for float numbers
+                        num1 = int(tokens[self.ip-1][0].value)
+                        num2 = int(tokens[self.ip+1][0].value)
+
+                        # TODOOO: add EE to its own NODE (if-statement) for easy code like:
+                        # if 1
+                        # <op>
+                        # <op>
+                        # end
+                        
+                        # instead of
+                        # if 1 == 1
+                        # <op>
+                        # <op>
+                        # end
                         
                         #---EE---#
                         asm.write(f"segment .text\n")
@@ -209,9 +230,22 @@ class Compiler:
                         asm.write("    jz addr_%d\n" % end_pos)
                         #---END IF---#
                         self.advance()
+
+                    elif tokens[self.ip][0].value == OP_ELSE:
+                        assert len(tokens[self.ip]) == 2, "`else` instruction does not have a reference to the end of its block."
+                        asm.write(f"segment .text\n")
+                        asm.write(f"    jmp addr_{tokens[self.ip][1]}\n")
+                        self.ip += 1
+                        asm.write("addr_%d:\n" % self.ip)
+                        
                     elif tokens[self.ip][0].value == OP_END:
                         asm.write("segment .text\n")
                         asm.write("addr_%d:\n" % self.ip)
+                        
+                    else:
+                        pos_start = self.pos.copy()
+                        err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip][0]}')
+                        return err
                         
                 elif tokens[self.ip][0].type == TT_NEWLINE:
                     pass

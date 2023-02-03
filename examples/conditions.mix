@@ -1,5 +1,9 @@
 if 34 + 35 == 69
-  print(69)
+  if 10 + 10 == 20
+    puts("hello, hello") 
+  else
+    print(40)
+  end 
 else
   print(420)
 end 

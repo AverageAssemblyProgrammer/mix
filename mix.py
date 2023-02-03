@@ -10,6 +10,8 @@ from libs.Parser import *
 
 MIX_EXT = '.mix'
 
+# TODO: right now, we do a little bit of simulation within the compilation, get rid of it
+
 def read_file(program : str):
     with open(program, 'r') as fd:
         program = fd.read()
@@ -105,9 +107,11 @@ class Compiler:
             asm.write("_start:\n")
 
             # print(tokens)
-            strings = {}
+            nEof = True
+            strs = []
             while len(tokens) > self.ip:
                 assert(len(KEYWORDS) == 2), "Exhaustive handling of keywords in generate_nasm_x86_64_assembly"
+                asm.write(f"addr_{self.ip}:\n")
                 if tokens[self.ip][0].type == TT_KEYWORD:
                     if tokens[self.ip][0].value == "print":
                         self.advance()
@@ -119,7 +123,7 @@ class Compiler:
                         
                         if tokens[self.ip][0].type == TT_INT:
                             num = int(tokens[self.ip][0].value)
-                            asm.write(f'segment .text\n')
+                            asm.write(f'    ;; -- print -- \n')
                             asm.write(f'    mov rdi, {num}\n')
                             asm.write(f'    call print\n')
                             
@@ -141,30 +145,29 @@ class Compiler:
                         if tokens[self.ip][0].type == TT_STRING:
                             nl = False
                             tmp = 0
-                            rand_id = str(random.randint(0, 10000000000))
                             string = tokens[self.ip][0].value
-                            out_str    = "string" + "_" + rand_id
                             while tmp < len(string):
                                 if string[tmp] == "\\":
                                     if string[tmp+1] == "n":
                                         nl = True
                                 tmp += 1
-                            if nl == True:
+                                
+                            if nl:
                                 str_len    = len(string) - 1
                             else:
                                 str_len    = len(string)
-                            
-                            asm.write(f'segment .text\n')
+                                
                             asm.write(f'    mov rax, 1\n')
                             asm.write(f'    mov rdi, 1\n')
-                            asm.write(f'    mov rsi, {out_str}\n')
+                            asm.write(f'    mov rsi, str_{len(strs)}\n')
                             asm.write(f'    mov rdx, {str_len}\n')
                             asm.write(f'    syscall\n')
                             
-                            strings.update({string : rand_id})
-
-                            asm.write(f'segment .data\n')
-                            asm.write(f'{out_str}: db    `{string}`\n')
+                            strs.append(string)
+                        else:
+                            pos_start = self.pos.copy()
+                            err = InvalidSyntaxError(pos_start, self.pos, f'`puts` intrinsic can only print strings for now')
+                            return err 
                             
                         self.advance()
                         
@@ -176,7 +179,8 @@ class Compiler:
                     else:
                         pos_start = self.pos.copy()
                         err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip][0]}')
-                        
+                        return err
+                    
                 elif tokens[self.ip][0].type == TT_IDENTIFIER:
                     if tokens[self.ip][0].value == OP_IF:
                         assert len(tokens[self.ip]) == 2, "`if` instruction does not have a reference to the end of its block."
@@ -191,11 +195,11 @@ class Compiler:
                                 return err
                             elif tokens[self.ip][0].type == TT_EE:
                                 nfoundee = False
-                            
-                        # TODO: check for float numbers
+                                
                         num1 = int(tokens[self.ip-1][0].value)
                         num2 = int(tokens[self.ip+1][0].value)
-
+                        self.advance()
+                        
                         # TODOOO: add EE to its own NODE (if-statement) for easy code like:
                         # if 1
                         # <op>
@@ -209,11 +213,10 @@ class Compiler:
                         # end
                         
                         #---EE---#
-                        asm.write(f"segment .text\n")
+                        asm.write(f"    ;; -- EE --\n")
                         asm.write(f"    push {num1}\n")
                         asm.write(f"    push {num2}\n")
-
-                        asm.write("segment .text\n")
+                        
                         asm.write("    mov rcx, 0\n")
                         asm.write("    mov rdx, 1\n")
                         asm.write("    pop rax\n")
@@ -224,22 +227,20 @@ class Compiler:
                         #---END EE---#
 
                         #---IF----#
-                        asm.write("segment .text\n")
+                        asm.write("    ;; -- IF --\n")
                         asm.write("    pop rax\n")
                         asm.write("    test rax, rax\n")
                         asm.write("    jz addr_%d\n" % end_pos)
                         #---END IF---#
                         self.advance()
-
+                        
                     elif tokens[self.ip][0].value == OP_ELSE:
                         assert len(tokens[self.ip]) == 2, "`else` instruction does not have a reference to the end of its block."
-                        asm.write(f"segment .text\n")
                         asm.write(f"    jmp addr_{tokens[self.ip][1]}\n")
                         self.ip += 1
                         asm.write("addr_%d:\n" % self.ip)
                         
                     elif tokens[self.ip][0].value == OP_END:
-                        asm.write("segment .text\n")
                         asm.write("addr_%d:\n" % self.ip)
                         
                     else:
@@ -248,24 +249,45 @@ class Compiler:
                         return err
                         
                 elif tokens[self.ip][0].type == TT_NEWLINE:
-                    pass
+                    asm.write("    ;; -- NEWLINE --\n")
+                    self.advance(str('\\n'))
                 elif tokens[self.ip][0].type == TT_EOF:
-                    asm.write(f'segment .text\n')
+                    nEof = False
+                    asm.write(f'    ;; -- EOF --\n')
                     asm.write(f'    mov rax, 60\n')
                     asm.write(f'    mov rdi, 0\n')
-                    asm.write(f'    syscall')
+                    asm.write(f'    syscall\n')
+                    asm.write(f'segment .data\n')
+                    for st in range(len(strs)):
+                        string = bytes(strs[st], 'utf-8').decode('unicode_escape')
+                        bs = "db " + ','.join(map(hex, bytes(string, 'utf-8')))
+                        asm.write(f'    str_{st}: {bs}\n')
                 else:
                     pos_start = self.pos.copy()
                     err = InvalidSyntaxError(pos_start, self.pos, f'{tokens[self.ip][0]}')
                     return err
                 
                 self.advance()
-            
+
+            if nEof:
+                asm.write(f'    ;; -- EOF --\n')
+                asm.write(f'    mov rax, 60\n')
+                asm.write(f'    mov rdi, 0\n')
+                asm.write(f'    syscall\n')
+                asm.write(f'segment .data\n')
+                for st in range(len(strs)):
+                    string = bytes(strs[st], 'utf-8').decode('unicode_escape')
+                    bs = "db " + ','.join(map(hex, bytes(string, 'utf-8')))
+                    asm.write(f'    str_{st}: {bs}\n')
+                        
         self.generate_output(basepath, MIX_EXT)
         
-    def advance(self):
+    def advance(self, current_char=None):
         self.ip += 1
-        self.pos.advance()
+        if current_char:
+            self.pos.advance(current_char)
+        else:
+            self.pos.advance(None)
         
     def generate_output(self, basepath, mix_ext):
         if basepath.endswith(mix_ext):
